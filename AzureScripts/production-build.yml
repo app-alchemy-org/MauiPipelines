@@ -1,0 +1,144 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml 
+
+# specific branch build with batching
+trigger:
+  batch: true
+  branches:
+    include:
+    - production
+
+variables:
+  - group: pipeline_variables
+
+stages:
+- stage: WindowsAndAndroid
+  dependsOn: []
+  displayName: Build Windows and Android Apps
+  pool:      
+    name: 'Azure Pipelines'
+    vmImage: 'windows-latest'
+  jobs:
+
+  # Windows build
+  - job: "WindowsJob"
+    displayName: "Windows Job"
+    steps:
+    - task: UseDotNet@2
+      displayName: .NET Version
+      inputs:
+        packageType: 'sdk'
+        version: '$(dotnet_version)'
+
+    - task: Bash@3
+      displayName: Install MAUI Workloads
+      inputs:
+        targetType: 'inline'
+        script: |
+          dotnet nuget locals all --clear 
+          dotnet workload install android maui --source https://aka.ms/dotnet8/nuget/index.json --source https://api.nuget.org/v3/index.json
+
+    - task: Bash@3
+      displayName: Show current working directory
+      inputs:
+        targetType: 'inline'
+        script: |
+          ls
+
+    - task: Bash@3
+      displayName: Build Windows MAUI App
+      inputs:
+        targetType: 'inline'
+        script: |
+          dotnet publish MauiPipelinesDemo/MauiPipelinesDemo/MauiPipelinesDemo.csproj -f net8.0-windows10.0.19041.0 -c Release --output '$(Build.ArtifactStagingDirectory)/Windows'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Windows app to artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/Windows'
+        ArtifactName: 'Windows'
+
+  # Android build
+  - job: "AndroidJob"
+    displayName: "Android Job"
+    steps:
+
+    - task: DownloadSecureFile@1
+      name: keystore_file
+      displayName: 'Download Keystore'
+      inputs:
+        secureFile: 'myapp.keystore'
+
+    - task: CopyFiles@2
+      displayName: "Import keystore file"
+      inputs:
+        sourceFolder: "$(Agent.TempDirectory)"
+        contents: "myapp.keystore"
+        targetFolder: "$(Agent.BuildDirectory)/s/MauiPipelinesDemo/MauiPipelinesDemo"
+
+    - task: Bash@3
+      displayName: Build Android MAUI App
+      inputs:
+        targetType: 'inline'
+        script: |
+          dotnet publish MauiPipelinesDemo/MauiPipelinesDemo/MauiPipelinesDemo.csproj -f net8.0-android -c Release --output '$(Build.ArtifactStagingDirectory)/Android' -p:AndroidKeyStore=true -p:AndroidSigningKeyStore=myapp.keystore -p:AndroidSigningKeyAlias=myapp -p:AndroidSigningKeyPass=$(key_store_pw) -p:AndroidSigningStorePass=$(key_store_pw)
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Android app to artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/Android'
+        ArtifactName: 'Android'
+
+- stage: iOS
+  dependsOn: []
+  displayName: iOS App
+  pool:      
+    name: 'Azure Pipelines'
+    vmImage: 'macos-13'
+  jobs:
+  # iOS build
+  - job: "IosJob"
+    displayName: "iOS Job"
+    steps:
+
+    - task: InstallAppleProvisioningProfile@1
+      displayName: Install Apple Provisioning Profile
+      inputs:
+        provisioningProfileLocation: 'secureFiles'
+        provProfileSecureFile: 'distribution.mobileprovision'
+
+    - task: InstallAppleCertificate@2
+      displayName: Install Apple Certificate
+      inputs:
+        certSecureFile: 'certificates.p12'
+        keychain: 'temp'
+        certPwd: $(certificate_pw)
+
+    - task: UseDotNet@2
+      displayName: .NET Version
+      inputs:
+        packageType: 'sdk'
+        version: '$(dotnet_version)'
+
+    - task: Bash@3
+      displayName: Install MAUI Workloads
+      inputs:
+        targetType: 'inline'
+        script: |
+          dotnet nuget locals all --clear 
+          dotnet workload install ios maui --source https://aka.ms/dotnet8/nuget/index.json --source https://api.nuget.org/v3/index.json
+
+    - task: Bash@3
+      displayName: Build iOS MAUI App
+      inputs:
+        targetType: 'inline'
+        script: |
+          dotnet publish MauiPipelinesDemo/MauiPipelinesDemo/MauiPipelinesDemo.csproj -f net8.0-ios -c Release --output '$(Build.ArtifactStagingDirectory)/iOS' -p:ArchiveOnBuild=true -p:CodesignKey="$(codesign_key)" -p:CodesignProvision="$(codesign_provision)" -p:MtouchLink="SdkOnly" -p:UseInterpreter="true"
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish iOS app to artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/iOS'
+        ArtifactName: 'iOS'
