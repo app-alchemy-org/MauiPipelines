@@ -1,7 +1,7 @@
 ﻿using ObjCRuntime;
 using UIKit;
 
-namespace MauiPipelinesDemo
+namespace MauiPipelines
 {
     public class Program
     {

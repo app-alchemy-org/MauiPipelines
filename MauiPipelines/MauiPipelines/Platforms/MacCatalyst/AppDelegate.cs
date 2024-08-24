@@ -1,6 +1,6 @@
 ﻿using Foundation;
 
-namespace MauiPipelinesDemo
+namespace MauiPipelines
 {
     [Register("AppDelegate")]
     public class AppDelegate : MauiUIApplicationDelegate

@@ -1,4 +1,4 @@
-﻿namespace MauiPipelinesDemo
+﻿namespace MauiPipelines
 {
     public partial class App : Application
     {
